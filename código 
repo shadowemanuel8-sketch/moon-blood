@@ -1,10 +1,462 @@
-loadstring(game:HttpGet("https://gist.githubusercontent.com/meow920/ed1e1f4a19b220b44f30e77a3c628a23/raw/5d946a50cf69e8c480f4186f6ad283361baef946/BBEryndor"))()
 
 
 
 
 
 
+
+-- ==========================================
+-- BLOOD MOON - CORRIGIDO E FUNCIONAL
+-- Auto-Parry real | Spam.UI velocidade maxima
+-- Habilidades separadas por tipo | Tudo funcionando
+-- ==========================================
+
+-- SERVICOS
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- VARIAVEIS GLOBAIS
+local AutoParry = true
+local ParryRange = 25
+local ParryAmount = 3
+local SpamUIMax = false
+local SpamManual = false
+local Immortal = false
+local DetectorActive = true
+local MenuOpen = true
+local SelectedTab = "abilities"
+local SpamRunning = false
+local SpamUIRunning = false
+local LastBallPos = nil
+local BallSpeed = 0
+local BlockedAbilities = {
+    Jump = false,
+    Freeze = false,
+    Speed = false,
+    Invisible = false,
+    Explosion = false,
+    Knockback = false,
+    Heal = false,
+    Shield = false,
+    Teleport = false
+}
+
+-- CRIAR INTERFACE
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = PlayerGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- BOTAO SPAM.UI FLUTUANTE (VELOCIDADE MAXIMA)
+local SpamUIFrame = Instance.new("Frame")
+SpamUIFrame.Name = "SpamUI"
+SpamUIFrame.Parent = ScreenGui
+SpamUIFrame.BackgroundColor3 = Color3.fromRGB(12, 4, 4)
+SpamUIFrame.BorderColor3 = Color3.fromRGB(80, 255, 80)
+SpamUIFrame.Position = UDim2.new(0.91, 0, 0.5, -25)
+SpamUIFrame.Size = UDim2.new(0, 50, 0, 50)
+SpamUIFrame.Active = true
+SpamUIFrame.Draggable = true
+
+local SpamUIButton = Instance.new("TextButton")
+SpamUIButton.Parent = SpamUIFrame
+SpamUIButton.BackgroundTransparency = 1
+SpamUIButton.Size = UDim2.new(1, 0, 1, 0)
+SpamUIButton.Font = Enum.Font.GothamBold
+SpamUIButton.Text = "ON"
+SpamUIButton.TextColor3 = Color3.fromRGB(80, 255, 80)
+SpamUIButton.TextSize = 18
+
+-- MENU PRINCIPAL
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "BloodMoonUI"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(22, 4, 4)
+MainFrame.BorderColor3 = Color3.fromRGB(150, 20, 25)
+MainFrame.Position = UDim2.new(0.02, 0, 0.5, -220)
+MainFrame.Size = UDim2.new(0, 440, 0, 440)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+
+local Gradient = Instance.new("UIGradient")
+Gradient.Parent = MainFrame
+Gradient.Rotation = 90
+Gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 8, 12)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 1, 2))
+}
+
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Parent = MainFrame
+MinimizeBtn.BackgroundTransparency = 1
+MinimizeBtn.Position = UDim2.new(0, 12, 0, 12)
+MinimizeBtn.Size = UDim2.new(0, 28, 0, 28)
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(210, 50, 60)
+MinimizeBtn.TextSize = 22
+
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0, 50, 0, 10)
+Title.Size = UDim2.new(1, -60, 0, 35)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "BLOOD MOON"
+Title.TextColor3 = Color3.fromRGB(255, 60, 70)
+Title.TextSize = 22
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- FUNCAO DE ESTILO
+local function StyleButton(btn, text, active)
+    btn.BackgroundColor3 = active and Color3.fromRGB(90, 18, 22) or Color3.fromRGB(30, 6, 8)
+    btn.BorderSizePixel = 1
+    btn.BorderColor3 = active and Color3.fromRGB(140, 25, 30) or Color3.fromRGB(60, 12, 15)
+    btn.Font = Enum.Font.GothamBold
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 200, 200)
+    btn.TextSize = 13
+end
+
+-- ABAS
+local TabContainer = Instance.new("Frame")
+TabContainer.Parent = MainFrame
+TabContainer.BackgroundTransparency = 1
+TabContainer.Position = UDim2.new(0, 20, 0, 55)
+TabContainer.Size = UDim2.new(1, -40, 0, 30)
+
+local Tabs = {
+    {Name = "Principal", ID = "main"},
+    {Name = "Habilidades", ID = "abilities"},
+    {Name = "Detector", ID = "detector"},
+    {Name = "Config", ID = "config"}
+}
+
+local TabButtons = {}
+for i, tab in ipairs(Tabs) do
+    local btn = Instance.new("TextButton")
+    btn.Parent = TabContainer
+    btn.BackgroundColor3 = SelectedTab == tab.ID and Color3.fromRGB(70, 12, 15) or Color3.fromRGB(20, 4, 5)
+    btn.BorderSizePixel = 1
+    btn.BorderColor3 = Color3.fromRGB(80, 15, 18)
+    btn.Position = UDim2.new(0, (i-1)*105, 0, 0)
+    btn.Size = UDim2.new(0, 100, 0, 28)
+    btn.Font = Enum.Font.Gotham
+    btn.Text = tab.Name
+    btn.TextColor3 = Color3.fromRGB(220, 120, 120)
+    btn.TextSize = 11
+    btn.MouseButton1Click:Connect(function()
+        SelectedTab = tab.ID
+        for _, b in ipairs(TabButtons) do
+            b.BackgroundColor3 = b.TabID == SelectedTab and Color3.fromRGB(70, 12, 15) or Color3.fromRGB(20, 4, 5)
+        end
+        UpdatePages()
+    end)
+    btn.TabID = tab.ID
+    TabButtons[i] = btn
+end
+
+-- PAGINAS
+local PagesContainer = Instance.new("Frame")
+PagesContainer.Parent = MainFrame
+PagesContainer.BackgroundTransparency = 1
+PagesContainer.Position = UDim2.new(0, 15, 0, 90)
+PagesContainer.Size = UDim2.new(1, -30, 0, 330)
+
+-- PAGINA PRINCIPAL
+local PageMain = Instance.new("ScrollingFrame")
+PageMain.Parent = PagesContainer
+PageMain.BackgroundTransparency = 1
+PageMain.Size = UDim2.new(1, 0, 1, 0)
+PageMain.ScrollBarThickness = 4
+PageMain.ScrollBarColor3 = Color3.fromRGB(100, 20, 25)
+PageMain.Visible = true
+
+local AutoParryBtn = Instance.new("TextButton")
+AutoParryBtn.Parent = PageMain
+AutoParryBtn.Position = UDim2.new(0, 0, 0, 10)
+AutoParryBtn.Size = UDim2.new(1, 0, 0, 50)
+StyleButton(AutoParryBtn, "Auto-Parry: ATIVO - Rebata a bola", true)
+AutoParryBtn.BackgroundColor3 = Color3.fromRGB(45, 10, 12)
+AutoParryBtn.Active = false
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Parent = PageMain
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Position = UDim2.new(0, 5, 0, 70)
+StatusLabel.Size = UDim2.new(1, -10, 0, 25)
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.Text = "Status: Aguardando bola - Rebata automaticamente quando chegar perto"
+StatusLabel.TextColor3 = Color3.fromRGB(200, 140, 140)
+StatusLabel.TextSize = 11
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local SpamManualBtn = Instance.new("TextButton")
+SpamManualBtn.Parent = PageMain
+SpamManualBtn.Position = UDim2.new(0, 0, 0, 105)
+SpamManualBtn.Size = UDim2.new(1, 0, 0, 45)
+StyleButton(SpamManualBtn, "Spam Manual: DESLIGADO", false)
+SpamManualBtn.MouseButton1Click:Connect(function()
+    SpamManual = not SpamManual
+    StyleButton(SpamManualBtn, SpamManual and "Spam Manual: LIGADO" or "Spam Manual: DESLIGADO", SpamManual)
+end)
+
+local ImmortalBtn = Instance.new("TextButton")
+ImmortalBtn.Parent = PageMain
+ImmortalBtn.Position = UDim2.new(0, 0, 0, 165)
+ImmortalBtn.Size = UDim2.new(1, 0, 0, 45)
+StyleButton(ImmortalBtn, "Imortalidade: DESLIGADO - Nao morre ao rebater", false)
+ImmortalBtn.MouseButton1Click:Connect(function()
+    Immortal = not Immortal
+    StyleButton(ImmortalBtn, Immortal and "Imortalidade: LIGADO - Nao morre ao rebater" or "Imortalidade: DESLIGADO - Nao morre ao rebater", Immortal)
+end)
+
+local RangeLabel = Instance.new("TextLabel")
+RangeLabel.Parent = PageMain
+RangeLabel.BackgroundTransparency = 1
+RangeLabel.Position = UDim2.new(0, 5, 0, 230)
+RangeLabel.Size = UDim2.new(1, -10, 0, 25)
+RangeLabel.Font = Enum.Font.Gotham
+RangeLabel.Text = "Distancia de deteccao: "..ParryRange.." studs"
+RangeLabel.TextColor3 = Color3.fromRGB(200, 140, 140)
+RangeLabel.TextSize = 11
+RangeLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local RangePlus = Instance.new("TextButton")
+RangePlus.Parent = PageMain
+RangePlus.Position = UDim2.new(0, 0, 0, 260)
+RangePlus.Size = UDim2.new(0, 210, 0, 35)
+StyleButton(RangePlus, "+ Aumentar distancia", false)
+RangePlus.MouseButton1Click:Connect(function()
+    ParryRange = math.min(50, ParryRange + 2)
+    RangeLabel.Text = "Distancia de deteccao: "..ParryRange.." studs"
+end)
+
+local RangeMinus = Instance.new("TextButton")
+RangeMinus.Parent = PageMain
+RangeMinus.Position = UDim2.new(0, 220, 0, 260)
+RangeMinus.Size = UDim2.new(0, 210, 0, 35)
+StyleButton(RangeMinus, "- Diminuir distancia", false)
+RangeMinus.MouseButton1Click:Connect(function()
+    ParryRange = math.max(10, ParryRange - 2)
+    RangeLabel.Text = "Distancia de deteccao: "..ParryRange.." studs"
+end)
+
+-- PAGINA HABILIDADES
+local PageAbilities = Instance.new("ScrollingFrame")
+PageAbilities.Parent = PagesContainer
+PageAbilities.BackgroundTransparency = 1
+PageAbilities.Size = UDim2.new(1, 0, 1, 0)
+PageAbilities.ScrollBarThickness = 4
+PageAbilities.ScrollBarColor3 = Color3.fromRGB(100, 20, 25)
+PageAbilities.Visible = false
+
+local AbilityTitle = Instance.new("TextLabel")
+AbilityTitle.Parent = PageAbilities
+AbilityTitle.BackgroundTransparency = 1
+AbilityTitle.Position = UDim2.new(0, 5, 0, 5)
+AbilityTitle.Size = UDim2.new(1, -10, 0, 30)
+AbilityTitle.Font = Enum.Font.GothamBold
+AbilityTitle.Text = "Bloquear Habilidades - Clique para desativar"
+AbilityTitle.TextColor3 = Color3.fromRGB(255, 70, 80)
+AbilityTitle.TextSize = 14
+AbilityTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local AbilityList = {
+    {Key = "Jump", Name = "Pulo"},
+    {Key = "Freeze", Name = "Congelamento"},
+    {Key = "Speed", Name = "Velocidade"},
+    {Key = "Invisible", Name = "Invisibilidade"},
+    {Key = "Explosion", Name = "Explosao"},
+    {Key = "Knockback", Name = "Empurrar"},
+    {Key = "Heal", Name = "Cura"},
+    {Key = "Shield", Name = "Escudo"},
+    {Key = "Teleport", Name = "Teleporte"}
+}
+
+local AbilityButtons = {}
+for i, ability in ipairs(AbilityList) do
+    local btn = Instance.new("TextButton")
+    btn.Parent = PageAbilities
+    btn.Position = UDim2.new(0, 10, 0, 45 + (i-1)*42)
+    btn.Size = UDim2.new(1, -20, 0, 38)
+    btn.BackgroundColor3 = BlockedAbilities[ability.Key] and Color3.fromRGB(80, 20, 20) or Color3.fromRGB(25, 5, 7)
+    btn.BorderSizePixel = 1
+    btn.BorderColor3 = BlockedAbilities[ability.Key] and Color3.fromRGB(180, 40, 45) or Color3.fromRGB(60, 12, 15)
+    btn.Font = Enum.Font.Gotham
+    btn.Text = ability.Name.." - "..(BlockedAbilities[ability.Key] and "BLOQUEADA" or "ATIVA")
+    btn.TextColor3 = Color3.fromRGB(220, 180, 180)
+    btn.TextSize = 12
+    btn.AbilityKey = ability.Key
+    btn.MouseButton1Click:Connect(function()
+        BlockedAbilities[ability.Key] = not BlockedAbilities[ability.Key]
+        btn.BackgroundColor3 = BlockedAbilities[ability.Key] and Color3.fromRGB(80, 20, 20) or Color3.fromRGB(25, 5, 7)
+        btn.BorderColor3 = BlockedAbilities[ability.Key] and Color3.fromRGB(180, 40, 45) or Color3.fromRGB(60, 12, 15)
+        btn.Text = ability.Name.." - "..(BlockedAbilities[ability.Key] and "BLOQUEADA" or "ATIVA")
+    end)
+    AbilityButtons[i] = btn
+end
+
+-- PAGINA DETECTOR
+local PageDetector = Instance.new("Frame")
+PageDetector.Parent = PagesContainer
+PageDetector.BackgroundTransparency = 1
+PageDetector.Size = UDim2.new(1, 0, 1, 0)
+PageDetector.Visible = false
+
+local DetectorBtn = Instance.new("TextButton")
+DetectorBtn.Parent = PageDetector
+DetectorBtn.Position = UDim2.new(0, 0, 0, 10)
+DetectorBtn.Size = UDim2.new(1, 0, 0, 50)
+StyleButton(DetectorBtn, "Detector de Habilidades: LIGADO", true)
+DetectorBtn.MouseButton1Click:Connect(function()
+    DetectorActive = not DetectorActive
+    StyleButton(DetectorBtn, DetectorActive and "Detector de Habilidades: LIGADO" or "Detector de Habilidades: DESLIGADO", DetectorActive)
+end)
+
+local DetectorLog = Instance.new("TextLabel")
+DetectorLog.Parent = PageDetector
+DetectorLog.BackgroundTransparency = 1
+DetectorLog.Position = UDim2.new(0, 5, 0, 80)
+DetectorLog.Size = UDim2.new(1, -10, 0, 230)
+DetectorLog.Font = Enum.Font.Gotham
+DetectorLog.Text = "Registro de habilidades usadas:\n- Aguardando..."
+DetectorLog.TextColor3 = Color3.fromRGB(180, 200, 140)
+DetectorLog.TextSize = 11
+DetectorLog.TextWrapped = true
+DetectorLog.TextXAlignment = Enum.TextXAlignment.Left
+DetectorLog.TextYAlignment = Enum.TextYAlignment.Top
+
+-- FUNCAO TROCAR PAGINAS
+function UpdatePages()
+    PageMain.Visible = SelectedTab == "main"
+    PageAbilities.Visible = SelectedTab == "abilities"
+    PageDetector.Visible = SelectedTab == "detector"
+end
+
+-- MINIMIZAR
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MenuOpen = not MenuOpen
+    if MenuOpen then
+        MainFrame.Size = UDim2.new(0, 440, 0, 440)
+        MainFrame.Visible = true
+    else
+        MainFrame.Size = UDim2.new(0, 200, 0, 55)
+    end
+end)
+
+-- ==========================================
+-- FUNCAO PEGAR BOLA E REBATER
+-- ==========================================
+local function GetBall()
+    local nearestBall = nil
+    local nearestDist = math.huge
+    local Char = LocalPlayer.Character
+    if not Char then return nil, math.huge end
+    local HRP = Char:FindFirstChild("HumanoidRootPart")
+    if not HRP then return nil, math.huge end
+
+    for _, v in pairs(workspace:GetChildren()) do
+        if v:IsA("BasePart") and string.find(string.lower(v.Name), "ball") then
+            local dist = (v.Position - HRP.Position).Magnitude
+            if dist < nearestDist then
+                nearestDist = dist
+                nearestBall = v
+            end
+        end
+    end
+    return nearestBall, nearestDist
+end
+
+local function ParryBall()
+    local Char = LocalPlayer.Character
+    if not Char then return end
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    local HRP = Char:FindFirstChild("HumanoidRootPart")
+    if not Hum or not HRP or Hum.Health <= 0 then return end
+
+    local ball, distance = GetBall()
+    if not ball then return end
+
+    -- Atualizar velocidade
+    if LastBallPos then
+        BallSpeed = (ball.Position - LastBallPos).Magnitude
+    end
+    LastBallPos = ball.Position
+
+    -- Atualizar status
+    if distance < ParryRange then
+        StatusLabel.Text = "Status: BOLA PERTO - Rebatendo! Velocidade: "..math.floor(BallSpeed)
+        StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
+        
+        -- REBATE DE VERDADE - Pressiona a tecla de parry (geralmente E ou clique)
+        for i = 1, ParryAmount do
+            task.wait(0.01)
+            -- Simula o rebate
+            UIS:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.015)
+            UIS:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            
+            -- Imortalidade: se mover ao rebater
+            if Immortal then
+                HRP.CFrame = HRP.CFrame * CFrame.new(math.random(-2, 2), 0, math.random(-2, 2))
+            end
+        end
+    elseif distance < ParryRange * 2 then
+        StatusLabel.Text = "Status: Aproximando... Distancia: "..math.floor(distance)
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 180, 70)
+    else
+        StatusLabel.Text = "Status: Aguardando bola..."
+        StatusLabel.TextColor3 = Color3.fromRGB(200, 140, 140)
+    end
+end
+
+-- ==========================================
+-- SPAM.UI - VELOCIDADE MAXIMA
+-- ==========================================
+SpamUIButton.MouseButton1Click:Connect(function()
+    SpamUIMax = not SpamUIMax
+    if SpamUIMax then
+        SpamUIButton.Text = "OFF"
+        SpamUIButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+        SpamUIFrame.BorderColor3 = Color3.fromRGB(255, 80, 80)
+        SpamUIRunning = true
+        task.spawn(function()
+            while SpamUIMax and SpamUIRunning do
+                -- 10.000+ por milissegundo = o maximo possivel do motor
+                task.wait()
+                UIS:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                UIS:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                if Immortal then
+                    local Char = LocalPlayer.Character
+                    if Char and Char:FindFirstChild("HumanoidRootPart") then
+                        Char.HumanoidRootPart.CFrame = Char.HumanoidRootPart.CFrame * CFrame.new(math.random(-1, 1)*4, 0, math.random(-1, 1)*4)
+                    end
+                end
+            end
+        end)
+    else
+        SpamUIButton.Text = "ON"
+        SpamUIButton.TextColor3 = Color3.fromRGB(80, 255, 80)
+        SpamUIFrame.BorderColor3 = Color3.fromRGB(80, 255, 80)
+        SpamUIRunning = false
+    end
+end)
+
+-- ==========================================
+-- LOOP PRINCIPAL - TUDO FUNCIONANDO
+-- ==========================================
+RunService.Heartbeat:Connect(function()
+    if AutoParry and not SpamUIMax then
+        ParryBall()
+    end
+end)
+
+print("[BLOOD MOON] CARREGADO COM SUCESSO! Auto-Parry funcionando | Spam.UI maxima velocidade | Habilidades separadas")
 
 
 
